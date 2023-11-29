@@ -1,4 +1,5 @@
 # %%
+from typing import Dict, List, Set
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -212,7 +213,102 @@ fig.update_layout(
 df_netflix
 # %%
 px.histogram(x=df_netflix["production_countries"].str.len())
+# %% [markdown]
+# Entries with 0 production countries are removed as they are probably
+# faulty data.
 # %%
-df_netflix["production_countries"]
+df_production = df_netflix.loc[df_netflix["production_countries"].str.len() > 0]
+# %%
+
+# Separate by country production number and count productions per country.
+fig = px.histogram(
+    df_production,
+    x=df_production.production_countries.str.len(),
+    title="Number of Production Countries per Entry",
+    color="type",
+    barmode="group",
+    histnorm="percent",
+)
+
+fig.update_layout(
+    xaxis=dict(
+        tickmode="linear", tick0=1, dtick=1, title="Number of Production Countries"
+    )
+)
+# %% [markdown]
+# Almost all shows, ca. 96%, are produced in 1 country. Wherease for movies
+# there is a sizeable amount, ca. 15%, that is produced in more than
+# one country.
+
+# %%
+
+df_production["production_countries"]
+
+# %%
+
+# get a set of unique countries
+
+set_of_countries = set()
+df_production["production_countries"].apply(lambda x: set_of_countries.update(x))
+
+# Check for integrity of all country ISO codes
+for x in set_of_countries:
+    if len(x) > 2:
+        print(x)
+# %% [markdown]
+# It seems that Lebanon has been labeled twice, once in its full name and one in
+# its ISO country code 'LB'.
+# %%
+
+# Find and change that to LB
+df_production.loc[
+    df_production["production_countries"].apply(lambda x: "Lebanon" in x)
+].index
+
+# %%
+df_production.loc[649, "production_countries"] = ["LB"]
+
+# %%
+set_of_countries = set()
+df_production["production_countries"].apply(lambda x: set_of_countries.update(x))
+len(set_of_countries)
+# %% [markdown]
+# There are 106 countries in which production took place.
+
+# %%
+
+
+def productions_per_country(series: pd.Series, set_of_countries: Set) -> pd.DataFrame:
+    p_per_c = dict(zip(set_of_countries, np.zeros(len(set_of_countries))))
+    for list_of_countries in series:
+        for country in list_of_countries:
+            p_per_c[country] += 1
+
+    return pd.DataFrame(dict(country=p_per_c.keys(), n_productions=p_per_c.values()))
+
+
+# %%
+df_productions_per_country = productions_per_country(
+    series=df_production["production_countries"],
+    set_of_countries=set_of_countries,
+)
+df_productions_per_country.head()
+# %%
+fig = px.bar(
+    df_productions_per_country.sort_values("n_productions", ascending=False),
+    x="country",
+    y="n_productions",
+    log_y=True,
+    hover_name="country",
+    hover_data={"country": False, "n_productions": True},
+    width=1800,
+)
+
+fig.update_layout(
+    title="Number of Productions per Country",
+    xaxis_title="Country (ISO Code)",
+    yaxis_title="Number of Productions; log scale",
+)
+fig.show()
 
 # %%
